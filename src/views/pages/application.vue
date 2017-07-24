@@ -51,9 +51,20 @@
                     <Form-item label="应用描述" prop="appDesc">
                         <Input v-model="formValidate.appDesc" type="textarea" :autosize="{minRows: 2,maxRows: 5}" placeholder="请输入应用描述..."></Input>
                     </Form-item>
-                    <Form-item label="应用授权" prop="appAuths">
-                        <Select v-model="formValidate.appAuths" filterable multiple>
-                            <Option v-for="item in permitList" :value="item.value" :key="item.value">{{ item.label }}</Option>
+                    <Form-item label="部门名称" prop="departmentId">
+                        <Select v-model="formValidate.departmentId" @on-change="loadUserData" filterable>
+                            <Option v-for="item in departData" :value="item.value " :key="item.value">{{ item.label }}</Option>
+                        </Select>
+                    </Form-item>
+
+                    <Form-item label="应用负责人" prop="appPrincipal">
+                        <Select v-model="formValidate.appPrincipal" filterable>
+                            <Option v-for="item in userData" :value="item.value" :key="item.value">{{ item.label }}</Option>
+                        </Select>
+                    </Form-item>
+                    <Form-item label="应用参与者" prop="appParticipators">
+                        <Select v-model="formValidate.appParticipators" filterable multiple>
+                            <Option v-for="item in userData" :value="item.value" :key="item.value">{{ item.label }}</Option>
                         </Select>
 
                         <!-- <Input v-model="formValidate.appAuths" placeholder="请选择应用授权"></Input> -->
@@ -103,8 +114,8 @@
                        label: '禁用'
                    }
                 ],
-                permitList: this.getPermit(),
                 appData: this.mockTableData(),
+                departData: this.departList(),
                 // [
                 //     {
                 //         id: '1',
@@ -142,9 +153,15 @@
                         ellipsis: true
                     },
                     {
-                        title: '应用授权',
-                        key: 'appAuths'
+                        title:'部门名称',
+                        key:'departmentName',
+                        ellipsis:true
                     },
+                    {
+                        title:'应用负责人',
+                        key:'appPrincipalName',
+                        ellipsis:true
+                    },                    
                     {
                         title: '修改时间',
                         key: 'updateTime',
@@ -232,37 +249,68 @@
                 formValidate: {
                     appName: '',
                     appDesc: '',
-                    appAuths: [],
+                    departmentId:'',
+                    appPrincipal:'',
+                    appParticipators:[],
                     status: '1'
                 },
                 ruleValidate: {
                     appName: [
                         { required: true, message: '应用名称不能为空', trigger: 'blur' }
+                    ],
+                    departmentId:[
+                        { required: true, type:'number',message: '部门不能为空', trigger: 'change' }
+                    ],
+                    appPrincipal:[
+                        { required: true, message: '负责人不能为空', trigger: 'change' }
+                    ],
+                    appParticipators:[
+                        { required: true, type: 'array',min:1,message: '参与人不能为空', trigger: 'change' }
                     ]
-                }
+                },
+                userData:{}
             }
         },
         methods: {
-            getPermit (){
-                let permitData = [];
-                this.$util.ajax.get('/dubbo/permit/findPermissionList.do?pageIndex=0&pageSize=100')
+            departList (){
+                let departData = {};
+                // let departData = [];
+                this.$util.ajax.get('/hr/depart/getDepartmentListByCondition')
                 .then(function(response){
-                    if(response.data.status=='success'){
-                        for (var i = 0; i < response.data.data.length; i++) {
-                            permitData.push({value:response.data.data[i].permitKey,label:response.data.data[i].permitName});
-                        }
-                    }else{
-                        self.$Message.error({
-                                content: response.data.errorCode +':'+response.data.errorMessage
-                        });
+                    for (var i = 0; i < response.data.data.length; i++) {
+                        departData[response.data.data[i].depart_id] = {value:response.data.data[i].depart_id,label:response.data.data[i].name,children:[],loading:false};
+                        // departData.push({value:response.data.data[i].depart_id,label:response.data.data[i].name,children:[],loading:false});
                     }
+                })
+                .catch(function(err){
+
+                    this.$Message.error({
+                            content: err
+                    });
+                });
+                
+                return departData;
+            },
+            loadUserData (param) {
+                let reqUserData = {}
+                let self = this;
+                if(this.formValidate.departmentId == 0){
+                    return;
+                }
+                this.$util.ajax.get('/hr/user/getUserListByCondition?department='+this.formValidate.departmentId)
+                .then(function(response){
+                    for (var i = 0; i < response.data.data.length; i++) {
+                        reqUserData[response.data.data[i].userId] = {value:response.data.data[i].userId,label:response.data.data[i].name};
+                        // self.userData.push({value:response.data.data[i].userId,label:response.data.data[i].name});
+                    }
+                    self.userData = reqUserData;
+                    
                 })
                 .catch(function(err){
                     self.$Message.error({
                             content: err
                     });
                 });
-                return permitData;
             },
             show (index) {
                 this.$Modal.info({
@@ -270,7 +318,9 @@
                     content: `<div><table width="100%" height="100%">
                             <tr><td width="70px" align="right" style="padding: 5px 10px 5px 0;">应用名</td><td>${this.appData[index].appName}</td></tr>
                             <tr><td width="70px" align="right" style="padding: 5px 10px 5px 0;">应用描述</td><td>${this.appData[index].appDesc}</td></tr>
-                            <tr><td width="70px" align="right" style="padding: 5px 10px 5px 0;">应用授权</td><td>${this.appData[index].appAuths}</td></tr>
+                            <tr><td width="70px" align="right" style="padding: 5px 10px 5px 0;">部门名称</td><td>${this.appData[index].departmentName}</td></tr>
+                            <tr><td width="70px" align="right" style="padding: 5px 10px 5px 0;">应用负责人</td><td>${this.appData[index].appPrincipalName}</td></tr>
+                            <tr><td width="70px" align="right" style="padding: 5px 10px 5px 0;">应用参与者</td><td>${this.appData[index].appParticipatorsName}</td></tr>
                             <tr><td width="70px" align="right" style="padding: 5px 10px 5px 0;">创建时间</td><td>${this.$util.date.formatDate(this.appData[index].createTime,'datetime')}</td></tr>
                             <tr><td width="70px" align="right" style="padding: 5px 10px 5px 0;">修改时间</td><td>${this.$util.date.formatDate(this.appData[index].updateTime,'datetime')}</td></tr>
                             <tr><td width="70px" align="right" style="padding: 5px 10px 5px 0;">操作人</td><td>${this.appData[index].operatorName}</td></tr>
@@ -301,7 +351,10 @@
                     id: data.id,
                     appName: data.appName,
                     appDesc: data.appDesc,
-                    appAuths: data.appAuths.split(','),
+                    departmentId:data.departmentId,
+                    appPrincipal:data.appPrincipal,
+                    appParticipators:data.appParticipators == null?'':data.appParticipators.split(','),
+                    //appAuths: data.appAuths.split(','),
                     status: data.status
 
                 }
@@ -311,13 +364,24 @@
             save (){
                 this.$refs['formValidate'].validate((valid) => {
                     if (valid) {
-                        let url = this.modal.appModalType=='add'?'/dubbo/app/insertapp.do':'/dubbo/app/updateapp.do';
+                        let url = this.modal.appModalType=='add'?'/dubbo/app/insertApp.do':'/dubbo/app/updateApp.do';
                         let self = this;
+                        let participatorsName = [];
+                        for(var i = 0 ;i < self.formValidate.appParticipators.length;i++){
+                            participatorsName.push(self.userData[self.formValidate.appParticipators[i]].label )
+                        }
+                        console.log(participatorsName)
                         let paramData = {
                             id: self.formValidate.id,
                             appName: self.formValidate.appName,
                             appDesc: self.formValidate.appDesc,
-                            appAuths: self.formValidate.appAuths.toString(),
+                            appPrincipal:self.formValidate.appPrincipal,
+                            appPrincipalName:self.userData[self.formValidate.appPrincipal].label,
+                            appParticipators:self.formValidate.appParticipators.toString(),
+                            appParticipatorsName:participatorsName.toString(),
+                            departmentName:self.departData[self.formValidate.departmentId].label,
+                            departmentId:self.formValidate.departmentId,
+                            //appAuths: self.formValidate.appAuths.toString(),
                             status: self.formValidate.status
                         }
                         this.$util.ajax.post(url,self.$util.qs.stringify(paramData))
@@ -360,12 +424,14 @@
                 }else{
                     ids.push(this.appData[index].id);
                 }
+                console.log({ids:ids})
+                console.log(this.$util.qs.stringify({ids:ids}));
                 this.$Modal.confirm({
                     title: '确认对话框标题',
                     content: '<p>确定要删除吗？</p>',
                     onOk: () => {
                         let self = this;
-                        this.$util.ajax.get('/dubbo/app/deleteapp.do?id='+ids[0])
+                        this.$util.ajax.get('/dubbo/app/deleteAppByIds.do?ids='+ids)
                         .then(function(response) {
                             if(response.data.status == 'success'){
                                 self.mockTableData();
@@ -406,7 +472,7 @@
                     }
                 }
                 let self = this;
-                this.$util.ajax.get('/dubbo/app/findappList.do'+params)
+                this.$util.ajax.get('/dubbo/app/findAppList.do'+params)
                 .then(function(response) {
                     if(response.data.status == 'success'){
                         self.page.recordsTotal = response.data.recordsTotal;
